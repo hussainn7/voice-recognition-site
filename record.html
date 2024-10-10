@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Запись голоса</title>
+</head>
+<body>
+    <h1>Запись голоса</h1>
+    <p>Нажмите на кнопку, чтобы начать запись вашего голоса:</p>
+    <button id="start-record-btn">Начать запись</button>
+    <button id="stop-record-btn" style="display: none;">Остановить запись</button>
+    
+    <audio id="audioPlayback" controls style="display: none;"></audio>
+    
+    <form id="upload-form" method="POST" enctype="multipart/form-data" style="display: none;">
+        <input type="file" id="audio-file" name="audio_data" style="display: none;">
+        <button type="submit">Отправить запись</button>
+    </form>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById("start-record-btn").addEventListener("click", async () => {
+            // Запрос доступа к микрофону
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.start();
+            document.getElementById("start-record-btn").style.display = "none";
+            document.getElementById("stop-record-btn").style.display = "block";
+
+            mediaRecorder.addEventListener("dataavailable", event => {
+                audioChunks.push(event.data);
+            });
+
+            mediaRecorder.addEventListener("stop", () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                document.getElementById("audioPlayback").src = audioUrl;
+                document.getElementById("audioPlayback").style.display = "block";
+
+                // Создание объекта File для отправки на сервер
+                const file = new File([audioBlob], "recording.wav", { type: 'audio/wav' });
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                document.getElementById("audio-file").files = dataTransfer.files;
+
+                // Показать форму отправки
+                document.getElementById("upload-form").style.display = "block";
+            });
+        });
+
+        document.getElementById("stop-record-btn").addEventListener("click", () => {
+            mediaRecorder.stop();
+            document.getElementById("stop-record-btn").style.display = "none";
+        });
+    </script>
+</body>
+</html>
