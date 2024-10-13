@@ -1,18 +1,33 @@
 from flask import Flask, request, render_template, redirect, url_for, jsonify
-from flask_mysqldb import MySQL
 import os
 import random
-
+import sqlite3
 app = Flask(__name__)
 
-app.config['MYSQL_HOST'] = 'localhost'
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = 'your_password'
-app.config['MYSQL_DB'] = 'voice_data_collection'
 app.config['UPLOAD_FOLDER'] = 'static/recordings'
-app.config['TEXT_FOLDER'] = 'kaktus'  # Папка для текста 
+app.config['TEXT_FOLDER'] = 'kaktus'
 
-mysql = MySQL(app)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+def get_db_connection():
+    conn = sqlite3.connect('data.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS recordings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            age_group TEXT,
+            gender TEXT,
+            region TEXT,
+            file_path TEXT,
+            text TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
 @app.route('/')
 def index():
@@ -25,32 +40,37 @@ def submit_user_data():
         gender = request.form['gender']
         region = request.form['region']
 
-        cur = mysql.connection.cursor()
-        cur.execute("INSERT INTO users (age_group, gender, region) VALUES (%s, %s, %s)", (age_group, gender, region))
-        mysql.connection.commit()
-        user_id = cur.lastrowid
-        cur.close()
+        conn = get_db_connection()
+        conn.execute('INSERT INTO recordings (age_group, gender, region) VALUES (?, ?, ?)', 
+                     (age_group, gender, region))
+        conn.commit()
+        conn.close()
 
-        return redirect(url_for('record', user_id=user_id))
+        return redirect(url_for('record'))
 
-@app.route('/record/<int:user_id>', methods=['GET', 'POST'])
-def record(user_id):
+@app.route('/record', methods=['GET', 'POST'])
+def record():
     if request.method == 'POST':
+        # Обработка аудиофайлаa
         file = request.files['audio_data']
         if file:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            # name daiu
+            filename = f"recording_{random.randint(1000, 9999)}.wav"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
 
-            cur = mysql.connection.cursor()
-            cur.execute("INSERT INTO recordings (user_id, file_path) VALUES (%s, %s)", (user_id, file_path))
-            mysql.connection.commit()
-            cur.close()
+            text = request.form.get('sentence')
 
-        return 'Файл записан успешно!'
+            conn = get_db_connection()
+            conn.execute('UPDATE recordings SET file_path = ?, text = ? WHERE id = (SELECT MAX(id) FROM recordings)', 
+                         (file_path, text))
+            conn.commit()
+            conn.close()
+
+            return 'Файл успешно загружен и сохранен в базе данных!'
 
     return render_template('record.html')
 
-# Func random
 @app.route('/random_sentence', methods=['GET'])
 def random_sentence():
     txt_files = [f for f in os.listdir(app.config['TEXT_FOLDER']) if f.endswith('.txt')]
@@ -58,7 +78,6 @@ def random_sentence():
     if not txt_files:
         return jsonify({"sentence": "No text files found in the folder."})
 
-    # random vybor
     random_file = random.choice(txt_files)
     file_path = os.path.join(app.config['TEXT_FOLDER'], random_file)
 
@@ -68,4 +87,5 @@ def random_sentence():
     return jsonify({"sentence": file_content})
 
 if __name__ == '__main__':
+    init_db()  
     app.run(debug=True)
