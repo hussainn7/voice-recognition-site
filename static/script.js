@@ -1,40 +1,38 @@
 document.getElementById('user-form').addEventListener('submit', function(event) {
     event.preventDefault();
     
-    // Скрываем форму и показываем инструкцию
     document.getElementById('user-form').style.display = 'none';
     document.getElementById('instruction').style.display = 'block';
+
+    document.getElementById('change-sentence-btn').addEventListener('click', function() {
+        loadRandomSentence();
+    });
 });
 
-// При нажатии на кнопку "Начать запись"
 document.getElementById('start-recording').addEventListener('click', function() {
     document.getElementById('instruction').style.display = 'none';
     document.getElementById('recording-section').style.display = 'block';
     
-    // Начинаем запись
     startRecording();
 });
 
 let mediaRecorder;
 let audioChunks = [];
 
-// Функция для начала записи
 function startRecording() {
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
             mediaRecorder = new MediaRecorder(stream);
+            audioChunks = []; 
 
-            // Когда есть доступные аудиоданные
             mediaRecorder.ondataavailable = function(event) {
                 audioChunks.push(event.data);
             };
 
-            // Когда запись останавливается
             mediaRecorder.onstop = function() {
-                saveAudio();
+                saveAudio(); 
             };
 
-            // Обработчик нажатия кнопки для начала/остановки записи
             document.getElementById('record-btn').addEventListener('click', () => {
                 if (mediaRecorder.state === 'inactive') {
                     mediaRecorder.start();
@@ -48,17 +46,35 @@ function startRecording() {
         .catch(error => console.error('Ошибка доступа к микрофону: ', error));
 }
 
-// Функция для сохранения аудиофайла
+
 function saveAudio() {
     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-    const audioUrl = URL.createObjectURL(audioBlob);
-    
-    // Создаем ссылку для скачивания файла
-    const downloadLink = document.createElement('a');
-    downloadLink.href = audioUrl;
-    downloadLink.download = 'recording.wav';
-    downloadLink.textContent = 'Скачать аудиофайл';
-    
-    // Добавляем ссылку на страницу
-    document.body.appendChild(downloadLink);
+
+    const formData = new FormData();
+    formData.append('audio_data', audioBlob, 'recording.wav');
+
+    const sentenceText = document.getElementById('sentence').innerText;
+    formData.append('sentence', sentenceText);
+    fetch('/record', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        console.log(data);  
+        alert("Файл успешно сохранен!");  
+    })
+    .catch(error => console.error('Ошибка при сохранении файла:', error));
 }
+
+
+function loadRandomSentence() {
+    fetch('/random_sentence')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('sentence').innerText = data.sentence;
+        })
+        .catch(error => console.error('Ошибка загрузки предложения:', error));
+}
+
+window.onload = loadRandomSentence;
