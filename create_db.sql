@@ -1,9 +1,6 @@
-
 CREATE DATABASE voice_data_collection;
 
-
 USE voice_data_collection;
-
 
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -11,7 +8,6 @@ CREATE TABLE users (
     gender VARCHAR(10),
     region VARCHAR(50)
 );
-
 
 CREATE TABLE recordings (
     id INT AUTO_INCREMENT PRIMARY KEY,
