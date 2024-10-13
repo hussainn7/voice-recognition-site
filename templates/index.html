@@ -10,10 +10,9 @@
     <div class="container">
         <h1>Сбор голосовых данных</h1>
         
-        <!-- Форма ввода данных пользователя -->
-        <form id="user-form">
+        <form id="user-form" method="POST" action="{{ url_for('submit_user_data') }}">
             <label for="age">Возрастная группа:</label>
-            <select id="age" required>
+            <select id="age" name="age" required>
                 <option value="18-24">18-24</option>
                 <option value="25-34">25-34</option>
                 <option value="35-44">35-44</option>
@@ -23,13 +22,13 @@
             </select>
             
             <label for="gender">Пол:</label>
-            <select id="gender" required>
+            <select id="gender" name="gender" required>
                 <option value="male">Мужской</option>
                 <option value="female">Женский</option>
             </select>
 
             <label for="region">Регион проживания:</label>
-            <select id="region" required>
+            <select id="region" name="region" required>
                 <option value="Batken">Баткенская область</option>
                 <option value="Jalalabad">Джалал-Абадская область</option>
                 <option value="Issyk-Kul">Иссык-Кульская область</option>
@@ -44,22 +43,21 @@
             <button type="submit">Продолжить</button>
         </form>
 
-        <!-- Инструкция перед записью -->
         <div id="instruction" style="display: none;">
             <h2>Инструкция</h2>
             <p>Вам нужно записать 10 голосовых сообщений, читая предложенные предложения.</p>
             <button id="start-recording">Начать запись</button>
         </div>
 
-        <!-- Секция записи аудио -->
         <div id="recording-section" style="display: none;">
             <h2>Запись</h2>
             <p id="sentence">Текст для чтения будет отображен здесь...</p>
             <button id="record-btn">Записать</button>
+            <button id="change-sentence-btn">Сменить текст</button>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script><script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 
     <script>
         function loadRandomSentence() {
@@ -72,6 +70,67 @@
         }
 
         window.onload = loadRandomSentence;
+
+        document.getElementById('user-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            document.getElementById('user-form').style.display = 'none';
+            document.getElementById('instruction').style.display = 'block';
+        });
+
+        document.getElementById('start-recording').addEventListener('click', function() {
+            document.getElementById('instruction').style.display = 'none';
+            document.getElementById('recording-section').style.display = 'block';
+            startRecording();
+        });
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = function(event) {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = function() {
+                        saveAudio();
+                    };
+
+                    document.getElementById('record-btn').addEventListener('click', () => {
+                        if (mediaRecorder.state === 'inactive') {
+                            mediaRecorder.start();
+                            document.getElementById('record-btn').textContent = "Остановить запись";
+                        } else {
+                            mediaRecorder.stop();
+                            document.getElementById('record-btn').textContent = "Записать";
+                        }
+                    });
+                })
+                .catch(error => console.error('Ошибка доступа к микрофону: ', error));
+        }
+
+        // Функция для сохранения аудиофайла
+        function saveAudio() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const formData = new FormData();
+            formData.append('audio_data', audioBlob, 'recording.wav');
+
+            fetch('/record', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log(data);  
+            })
+            .catch(error => console.error('Ошибка при загрузке файла:', error));
+        }
+
+        document.getElementById('change-sentence-btn').addEventListener('click', function() {
+            loadRandomSentence();
+        });
     </script>
 </body>
 </html>
